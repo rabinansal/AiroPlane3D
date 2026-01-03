@@ -30,20 +30,25 @@ class AirplaneState {
 
     /**
      * Update airplane state with smooth interpolation toward target values.
+     * Optimized for 30fps with reduced interpolation factors.
      * @param target Target position/orientation from flight route
      * @param dtimeMs Delta time in milliseconds since last update
      */
-    fun update(target: RouteSample, dtimeMs: Long) {
+    fun update(target: RouteSample, dtimeMs: Double) {
         val dtimeS = dtimeMs / 1000.0
         animTimeS += dtimeS
 
-        // Physics-based interpolation for smooth motion
-        // Mix factors match JavaScript implementation
-        position[0] = mix(position[0], target.position[0], dtimeMs * 0.05)
-        position[1] = mix(position[1], target.position[1], dtimeMs * 0.05)
-        altitude = mix(altitude, target.altitude, dtimeMs * 0.05)
-        bearing = mix(bearing, target.bearing, dtimeMs * 0.01)
-        pitch = mix(pitch, target.pitch, dtimeMs * 0.01)
+        // Smooth interpolation tuned for 30fps (33.33ms per frame)
+        // Reduced factors for smoother motion: position = 0.02, rotation = 0.005
+        // At 30fps (33ms): position factor = 0.66, rotation factor = 0.165
+        val positionFactor = (dtimeMs * 0.02).coerceAtMost(1.0)
+        val rotationFactor = (dtimeMs * 0.005).coerceAtMost(1.0)
+        
+        position[0] = mix(position[0], target.position[0], positionFactor)
+        position[1] = mix(position[1], target.position[1], positionFactor)
+        altitude = mix(altitude, target.altitude, positionFactor)
+        bearing = mix(bearing, target.bearing, rotationFactor)
+        pitch = mix(pitch, target.pitch, rotationFactor)
         
         // Gear animation: Retract at 50m altitude
         frontGearRotation = mix(0.0, 90.0, (altitude / 50.0).coerceIn(0.0, 1.0))

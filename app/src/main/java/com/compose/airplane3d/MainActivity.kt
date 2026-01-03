@@ -1,8 +1,6 @@
 package com.compose.airplane3d
 
-import android.animation.ValueAnimator
 import android.os.Bundle
-import android.view.animation.LinearInterpolator
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -12,27 +10,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import com.compose.airplane3d.AnimationConstants.CAMERA_BASE_ALTITUDE
-import com.compose.airplane3d.AnimationConstants.CAMERA_MAX_ALTITUDE
-import com.mapbox.geojson.Point
 import com.mapbox.geojson.Point.fromLngLat
-import com.mapbox.maps.CameraOptions
 import com.mapbox.maps.MapView
 import com.mapbox.maps.Style
 import com.mapbox.maps.extension.style.expressions.dsl.generated.get
 import com.mapbox.maps.extension.style.expressions.dsl.generated.interpolate
 import com.mapbox.maps.extension.style.expressions.dsl.generated.match
-import com.mapbox.maps.extension.style.expressions.dsl.generated.literal
-import com.mapbox.maps.extension.style.expressions.dsl.generated.product
 import com.mapbox.maps.extension.style.layers.generated.lineLayer
 import com.mapbox.maps.extension.style.layers.generated.modelLayer
 import com.mapbox.maps.extension.style.layers.properties.generated.LineCap
 import com.mapbox.maps.extension.style.layers.properties.generated.LineJoin
 import com.mapbox.maps.extension.style.layers.properties.generated.ModelType
 import com.mapbox.maps.extension.style.model.model
-import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource
 import com.mapbox.maps.extension.style.sources.generated.geoJsonSource
-import com.mapbox.maps.extension.style.sources.getSource
 import com.mapbox.maps.extension.style.style
 
 /**
@@ -115,7 +105,7 @@ private fun MapView.setupMap(flightRoute: FlightRoute) {
             }
             +modelLayer("3d-model-layer", "airplane-source") {
                 modelId(get("model-id"))
-                modelType(ModelType.LOCATION_INDICATOR)
+                modelType(ModelType.COMMON_3D)
 
                 // Dynamic scale based on zoom level
                 modelScale(
@@ -186,166 +176,13 @@ private fun MapView.setupMap(flightRoute: FlightRoute) {
             }
         }
     ) { style ->
-        // Configure Standard style with dusk lighting
+        // Configure Standard style with day lighting
         style.setStyleImportConfigProperty("basemap", "lightPreset", com.mapbox.bindgen.Value.valueOf("day"))
         style.setStyleImportConfigProperty("basemap", "showPointOfInterestLabels", com.mapbox.bindgen.Value.valueOf(false))
         style.setStyleImportConfigProperty("basemap", "showRoadLabels", com.mapbox.bindgen.Value.valueOf(false))
         
-        // Start animation loop once style is loaded and configured
-        startAnimation(this, flightRoute)
-    }
-}
-
-/**
- * Animation constants matching the JavaScript example.
- */
-private object AnimationConstants {
-    const val DURATION_MS = 60000.0
-    const val ALTITUDE_MIN = 200.0
-    const val ALTITUDE_MAX = 3000.0
-    const val TIMELAPSE_MIN = 0.001
-    const val TIMELAPSE_MAX = 10.0
-    const val CAMERA_BASE_ALTITUDE = 50.0
-    const val CAMERA_MAX_ALTITUDE = 10000000.0
-}
-
-/**
- * Start the animation loop for the airplane.
- */
-private fun startAnimation(mapView: MapView, flightRoute: FlightRoute) {
-    val mapboxMap = mapView.mapboxMap
-
-    // Initialize airplane state at start position
-    val airplane = AirplaneState()
-    flightRoute.sample(0.0)?.let { startSample ->
-        airplane.position[0] = startSample.position[0]
-        airplane.position[1] = startSample.position[1]
-        airplane.altitude = startSample.altitude
-        airplane.bearing = startSample.bearing
-        airplane.pitch = startSample.pitch
-    }
-    
-    var phase = 0.0
-    var routeElevation = 0.0
-    var lastFrameTime = 0L  // Initialize to 0 to detect first frame
-
-    // Create continuous animation ticker
-    val animator = ValueAnimator.ofFloat(0f, 1f).apply {
-        duration = 1000
-        repeatCount = ValueAnimator.INFINITE
-        interpolator = LinearInterpolator()
-    }
-
-    animator.addUpdateListener {
-        val currentTime = System.currentTimeMillis()
-        
-        // Calculate delta time, skip on first frame
-        val deltaTime = if (lastFrameTime == 0L) {
-            lastFrameTime = currentTime
-            16L  // Use standard 60fps frame time for first frame
-        } else {
-            val delta = (currentTime - lastFrameTime).coerceIn(1, 100)
-            lastFrameTime = currentTime
-            delta
-        }
-
-        // Calculate animation speed based on altitude (timelapse effect)
-        val animFade = clamp(
-            (routeElevation - AnimationConstants.ALTITUDE_MIN) / 
-            (AnimationConstants.ALTITUDE_MAX - AnimationConstants.ALTITUDE_MIN)
-        )
-        val timelapseFactor = mix(
-            AnimationConstants.TIMELAPSE_MIN, 
-            AnimationConstants.TIMELAPSE_MAX, 
-            animFade * animFade
-        )
-        
-        // Update animation phase
-        phase += (deltaTime * timelapseFactor) / AnimationConstants.DURATION_MS
-        
-        // Stop animation after one complete cycle
-        if (phase >= 1.0) {
-            animator.cancel()
-            phase = 1.0  // Clamp to end
-        }
-
-        // Sample route and update airplane state
-        flightRoute.sample(flightRoute.totalLength * phase)?.let { target ->
-            routeElevation = target.altitude
-            airplane.update(target, deltaTime)
-        }
-
-        // Update camera to follow airplane (use routeElevation for offset, not airplane.altitude)
-        updateCamera(mapboxMap, airplane, routeElevation, animFade)
-    }
-
-    // Get the source once to avoid getStyle() overhead in the loop
-    mapboxMap.getStyle { style ->
-        val source = style.getSource("airplane-source") as? GeoJsonSource
-        if (source != null) {
-            animator.addUpdateListener {
-                val feature = FeatureBuilder.createAnimatedFeature(airplane)
-                source.feature(feature)
-            }
-        }
-    }
-    
-    animator.start()
-}
-
-
-
-/**
- * Update camera to follow the airplane with dramatic zoom effects.
- * Camera offset creates cinematic effect during takeoff/landing.
- * Uses routeElevation (target altitude) for offset to keep camera close during takeoff/landing.
- */
-private fun updateCamera(
-    mapboxMap: com.mapbox.maps.MapboxMap,
-    airplane: AirplaneState,
-    routeElevation: Double,
-    animFade: Double
-) {
-    val point = fromLngLat(airplane.position[0], airplane.position[1], airplane.altitude)
-    
-    try {
-        val camera = mapboxMap.getFreeCameraOptions()
-        
-        // Camera offset for cinematic effect (matching JS logic exactly)
-        // IMPORTANT: Use routeElevation (not airplane.altitude) for offset calculation
-        val cameraOffsetLng = mix(-0.0014, 0.0, routeElevation / 200.0)
-        val cameraOffsetLat = mix(0.0014, 0.0, routeElevation / 200.0)
-
-        // Camera altitude exactly matching JS: airplane.altitude + 50.0 + mix(0, 10000000, animFade)
-        val cameraAltitude = airplane.altitude + CAMERA_BASE_ALTITUDE + mix(0.0, CAMERA_MAX_ALTITUDE, animFade)
-
-        // Position camera with offset
-        camera.setLocation(
-            fromLngLat(
-                airplane.position[0] + cameraOffsetLng,
-                airplane.position[1] + cameraOffsetLat
-            ),
-            cameraAltitude
-        )
-        
-        // Look at the airplane position
-        // Note: Android SDK's lookAtPoint doesn't support up vector like JS
-        camera.lookAtPoint(point, airplane.altitude)
-        
-        mapboxMap.setCamera(camera)
-    } catch (e: Exception) {
-        // Fallback to standard camera with dynamic pitch
-        // Higher pitch (more tilted) at low altitude for better view
-        val targetZoom = mix(19.0, 8.0, animFade)
-        val targetPitch = mix(70.0, 45.0, animFade)  // Steeper angle during takeoff/landing
-        
-        mapboxMap.setCamera(
-            CameraOptions.Builder()
-                .center(point)
-                .zoom(targetZoom)
-                .bearing(0.0)
-                .pitch(targetPitch)
-                .build()
-        )
+        // Create animation controller and start animation
+        val animationController = MapAnimationController(this, flightRoute)
+        animationController.startAnimation()
     }
 }
