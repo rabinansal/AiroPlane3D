@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Airplane3D</string>
+    <string name="mapbox_access_token">pk.eyJ1IjoiYWZlZWZwayIsImEiOiJjbHdoZXY2cmswOTlqMmlueXFvbTc0a2p5In0.1pUthqjQKGJTAL1GYfe3Vw</string>
+</resources>
