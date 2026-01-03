@@ -1,8 +1,6 @@
 package com.compose.airplane3d
 
 import kotlin.math.PI
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sin
 
 fun clamp(value: Double): Double = value.coerceIn(0.0, 1.0)

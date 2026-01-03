@@ -7,6 +7,11 @@ import com.mapbox.maps.MapView
 import com.mapbox.maps.MapboxMap
 import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource
 import com.mapbox.maps.extension.style.sources.getSource
+import com.mapbox.bindgen.Value
+import com.mapbox.maps.FeaturesetDescriptor
+import com.compose.airplane3d.clamp
+import com.compose.airplane3d.mix
+import com.compose.airplane3d.rad2deg
 
 /**
  * Controller class that manages the 3D airplane animation.

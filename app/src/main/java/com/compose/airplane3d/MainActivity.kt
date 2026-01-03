@@ -105,7 +105,7 @@ private fun MapView.setupMap(flightRoute: FlightRoute) {
             }
             +modelLayer("3d-model-layer", "airplane-source") {
                 modelId(get("model-id"))
-                modelType(ModelType.COMMON_3D)
+                modelType(ModelType.LOCATION_INDICATOR)
 
                 // Dynamic scale based on zoom level
                 modelScale(
@@ -155,17 +155,46 @@ private fun MapView.setupMap(flightRoute: FlightRoute) {
                     }
                 )
 
-                // Material opacity for lights and propeller blur
                 modelOpacity(
                     match {
                         get("part")
-                        literal("lights_position_white_volume"); product { get("light-emission-strobe"); literal(0.25) }
-                        literal("lights_anti_collision_red_volume"); product { get("light-emission-strobe"); literal(0.45) }
-                        literal("lights_position_green_volume"); product { get("light-emission"); literal(0.25) }
-                        literal("lights_position_red_volume"); product { get("light-emission"); literal(0.25) }
-                        literal("lights_taxi_white"); product { get("light-emission-taxi"); literal(0.25) }
-                        literal("lights_taxi_white_volume"); product { get("light-emission-taxi"); literal(0.25) }
-                        literal("propeller_blur"); literal(0.2)
+                        // Light volumes with opacity based on emission strength
+                        literal("lights_position_white_volume")
+                        product { 
+                            com.mapbox.maps.extension.style.expressions.dsl.generated.featureState { literal("light-emission-strobe") }
+                            literal(0.25) 
+                        }
+                        literal("lights_anti_collision_red_volume")
+                        product { 
+                            com.mapbox.maps.extension.style.expressions.dsl.generated.featureState { literal("light-emission-strobe") }
+                            literal(0.45) 
+                        }
+                        literal("lights_position_green_volume")
+                        product { 
+                            com.mapbox.maps.extension.style.expressions.dsl.generated.featureState { literal("light-emission") }
+                            literal(0.25) 
+                        }
+                        literal("lights_position_red_volume")
+                        product { 
+                            com.mapbox.maps.extension.style.expressions.dsl.generated.featureState { literal("light-emission") }
+                            literal(0.25) 
+                        }
+                        literal("lights_taxi_white")
+                        product { 
+                            com.mapbox.maps.extension.style.expressions.dsl.generated.featureState { literal("light-emission-taxi") }
+                            literal(0.25) 
+                        }
+                        literal("lights_taxi_white_volume")
+                        product { 
+                            com.mapbox.maps.extension.style.expressions.dsl.generated.featureState { literal("light-emission-taxi") }
+                            literal(0.25) 
+                        }
+                        
+                        // Propeller blur constant opacity
+                        literal("propeller_blur")
+                        literal(0.2)
+                        
+                        // Default: fully opaque
                         literal(1.0)
                     }
                 )
@@ -176,8 +205,8 @@ private fun MapView.setupMap(flightRoute: FlightRoute) {
             }
         }
     ) { style ->
-        // Configure Standard style with day lighting
-        style.setStyleImportConfigProperty("basemap", "lightPreset", com.mapbox.bindgen.Value.valueOf("day"))
+        // Configure Standard style with dusk lighting
+        style.setStyleImportConfigProperty("basemap", "lightPreset", com.mapbox.bindgen.Value.valueOf("dusk"))
         style.setStyleImportConfigProperty("basemap", "showPointOfInterestLabels", com.mapbox.bindgen.Value.valueOf(false))
         style.setStyleImportConfigProperty("basemap", "showRoadLabels", com.mapbox.bindgen.Value.valueOf(false))
         
